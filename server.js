@@ -16,8 +16,10 @@ const server = http.createServer((req, res) => {
     bwipjs.toBuffer({
         bcid: 'databarexpandedstacked',
         text: query.text,
+        segments: 8,
         scaleX: 2,
         scaleY: 1,
+
         includetext: true,
         alttext: query.text,
     })
