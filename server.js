@@ -8,13 +8,17 @@ const PORT = process.env.PORT || 10000;
 
 const server = http.createServer(async (req, res) => {
     const parsedUrl = url.parse(req.url, true);
+    const { pathname, query } = parsedUrl;
 
-    // -----------------------------
+    // ---------------------------------
     // 1️⃣ Serve index.html
-    // -----------------------------
-    if (req.method === 'GET' && parsedUrl.pathname === '/') {
+    // ---------------------------------
+    if (req.method === 'GET' && pathname === '/') {
         try {
-            const html = fs.readFileSync(path.join(__dirname, 'index.html'));
+            const html = fs.readFileSync(
+                path.join(__dirname, 'index.html'),
+                'utf8'
+            );
             res.writeHead(200, { 'Content-Type': 'text/html' });
             return res.end(html);
         } catch (err) {
@@ -23,18 +27,17 @@ const server = http.createServer(async (req, res) => {
         }
     }
 
-    // -----------------------------
+    // ---------------------------------
     // 2️⃣ Barcode API
-    // -----------------------------
-    if (parsedUrl.pathname === '/generate') {
-        const query = parsedUrl.query;
-
-        if (!query.texts) {
+    // ---------------------------------
+    if (req.method === 'GET' && pathname === '/generate') {
+        if (!query.texts || !query.texts.trim()) {
             res.writeHead(400, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ error: 'Missing ?texts parameter' }));
+            return res.end(
+                JSON.stringify({ error: 'Missing ?texts parameter' })
+            );
         }
 
-        // Meerdere barcodes: 1 per regel
         const texts = query.texts
             .split('\n')
             .map(t => t.trim())
@@ -46,7 +49,7 @@ const server = http.createServer(async (req, res) => {
             try {
                 const png = await bwipjs.toBuffer({
                     bcid: 'databarexpandedstacked',
-                    text: text,
+                    text,
                     gs1: true,
                     scaleX: 2,
                     scaleY: 1,
@@ -57,13 +60,12 @@ const server = http.createServer(async (req, res) => {
 
                 results.push({
                     text,
-                    image: 'data:image/png;base64,' + png.toString('base64')
+                    image: 'data:image/png;base64,' + png.toString('base64'),
                 });
-
             } catch (err) {
                 results.push({
                     text,
-                    error: err.message
+                    error: err.message,
                 });
             }
         }
@@ -72,11 +74,11 @@ const server = http.createServer(async (req, res) => {
         return res.end(JSON.stringify(results));
     }
 
-    // -----------------------------
-    // 3️⃣ Fallback
-    // -----------------------------
-    res.writeHead(404, { 'Content-Type': 'text/plain' });
-    res.end('Not found');
+    // ---------------------------------
+    // 3️⃣ JSON fallback (belangrijk!)
+    // ---------------------------------
+    res.writeHead(404, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Not found' }));
 });
 
 server.listen(PORT, () => {
