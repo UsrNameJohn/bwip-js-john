@@ -1,7 +1,6 @@
 const http = require('http');
 const url = require('url');
 const bwipjs = require('bwip-js');
-
 const PORT = process.env.PORT || 10000;
 
 const server = http.createServer((req, res) => {
