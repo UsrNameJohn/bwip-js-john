@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="nl">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <title>A4 Barcode Print</title>
@@ -15,6 +15,9 @@ body {
     margin: 0;
 }
 
+/* ======================
+   Controls (no print)
+====================== */
 .no-print {
     margin: 10px;
 }
@@ -75,19 +78,9 @@ body {
     text-align: center;
     color: #555;
 }
+
 #dropzone.dragover {
     background: #f0f0f0;
-}
-
-/* ======================
-   Status
-====================== */
-#counter, #summary {
-    margin-top: 5px;
-    font-size: 9pt;
-}
-#summary {
-    font-weight: bold;
 }
 </style>
 </head>
@@ -96,165 +89,214 @@ body {
 
 <div class="no-print">
 
-    <div id="dropzone">
-        📂 Drag & drop a CSV file (first column = barcode)
-    </div>
+    <!-- Language selector -->
+    <select id="language"></select>
+    <br><br>
 
-    <textarea id="input" rows="5" cols="60"
-        placeholder="1 barcode per line"></textarea>
+    <div id="dropzone"></div>
 
-    <div id="counter">Barcodes detected: 0</div>
-    <div id="summary"></div>
+    <textarea id="input" rows="5" cols="60"></textarea>
+    <br><br>
 
-    <br>
+    <button id="btn-generate"></button>
+    <button id="btn-layout-a"></button>
+    <button id="btn-layout-b"></button>
+    <button id="btn-export"></button>
+    <button id="btn-print"></button>
 
-    <button onclick="loadExample()">Load example</button>
-    <button onclick="generate()">Generate barcodes</button>
-    <button onclick="setLayout('a')">Layout A</button>
-    <button onclick="setLayout('b')">Layout B</button>
-    <button onclick="exportPDF()">Export PDF</button>
-    <button onclick="window.print()">Print A4</button>
+    <div id="counter" style="margin-top:8px;font-size:9pt;color:#555"></div>
+    <div id="summary" style="margin-top:4px;font-size:9pt"></div>
 </div>
 
 <div id="page" class="layout-a"></div>
 
 <script>
 /* ======================
+   i18n
+====================== */
+const i18n = {
+    en: {
+        drop: "📂 Drag & drop a CSV file (first column = barcode)",
+        placeholder: "1 barcode per line",
+        generate: "Generate barcodes",
+        layoutA: "Layout A",
+        layoutB: "Layout B",
+        export: "Export PDF",
+        print: "Print A4",
+        detected: n => `Barcodes detected: ${n}`,
+        summary: (ok, fail) => `✅ ${ok} generated — ❌ ${fail} errors`
+    },
+    nl: {
+        drop: "📂 Sleep een CSV-bestand hierheen (eerste kolom = barcode)",
+        placeholder: "1 barcode per regel",
+        generate: "Genereer barcodes",
+        layoutA: "Layout A",
+        layoutB: "Layout B",
+        export: "Exporteer PDF",
+        print: "Print A4",
+        detected: n => `Barcodes gevonden: ${n}`,
+        summary: (ok, fail) => `✅ ${ok} gegenereerd — ❌ ${fail} fouten`
+    },
+    de: {
+        drop: "📂 CSV-Datei hier ablegen (erste Spalte = Barcode)",
+        placeholder: "1 Barcode pro Zeile",
+        generate: "Barcodes erzeugen",
+        layoutA: "Layout A",
+        layoutB: "Layout B",
+        export: "PDF exportieren",
+        print: "A4 drucken",
+        detected: n => `Barcodes erkannt: ${n}`,
+        summary: (ok, fail) => `✅ ${ok} erzeugt — ❌ ${fail} Fehler`
+    },
+    hi: {
+        drop: "📂 CSV फ़ाइल यहाँ छोड़ें (पहला कॉलम = बारकोड)",
+        placeholder: "प्रति पंक्ति 1 बारकोड",
+        generate: "बारकोड बनाएं",
+        layoutA: "लेआउट A",
+        layoutB: "लेआउट B",
+        export: "PDF निर्यात करें",
+        print: "A4 प्रिंट करें",
+        detected: n => `बारकोड मिले: ${n}`,
+        summary: (ok, fail) => `✅ ${ok} सफल — ❌ ${fail} त्रुटियाँ`
+    }
+};
+
+let currentLang = "en";
+
+/* ======================
+   Language setup
+====================== */
+const langSelect = document.getElementById("language");
+Object.keys(i18n).forEach(l => {
+    const o = document.createElement("option");
+    o.value = l;
+    o.textContent = l.toUpperCase();
+    langSelect.appendChild(o);
+});
+
+langSelect.value = currentLang;
+langSelect.onchange = () => setLanguage(langSelect.value);
+
+function setLanguage(lang) {
+    currentLang = lang;
+    const t = i18n[lang];
+
+    document.getElementById("dropzone").textContent = t.drop;
+    document.getElementById("input").placeholder = t.placeholder;
+    document.getElementById("btn-generate").textContent = t.generate;
+    document.getElementById("btn-layout-a").textContent = t.layoutA;
+    document.getElementById("btn-layout-b").textContent = t.layoutB;
+    document.getElementById("btn-export").textContent = t.export;
+    document.getElementById("btn-print").textContent = t.print;
+
+    updateCounter();
+}
+
+/* ======================
    Helpers
 ====================== */
 function getLines() {
-    return document.getElementById('input').value
+    return document.getElementById("input").value
         .split(/\r?\n/)
         .map(l => l.trim())
         .filter(Boolean);
 }
 
 function updateCounter() {
-    document.getElementById('counter').textContent =
-        `Barcodes detected: ${getLines().length}`;
+    document.getElementById("counter").textContent =
+        i18n[currentLang].detected(getLines().length);
 }
 
 /* ======================
    Layout switch
 ====================== */
 function setLayout(type) {
-    const page = document.getElementById('page');
-    page.classList.remove('layout-a', 'layout-b');
+    const page = document.getElementById("page");
+    page.classList.remove("layout-a", "layout-b");
     page.classList.add(`layout-${type}`);
-}
-
-/* ======================
-   Example loader
-====================== */
-function loadExample() {
-    const example = `(255)8711576008926812726881(3902)2500
-(01)08711576008926(10)ABC123
-(01)09506000134352(21)98765`;
-
-    document.getElementById('input').value = example;
-    updateCounter();
 }
 
 /* ======================
    Barcode generation
 ====================== */
 async function generate() {
-    const lines = getLines();
-    const page = document.getElementById('page');
-    const summary = document.getElementById('summary');
+    const page = document.getElementById("page");
+    const summary = document.getElementById("summary");
+    page.innerHTML = "";
+    summary.textContent = "";
 
-    page.innerHTML = '';
-    summary.textContent = '';
+    const input = getLines();
+    if (!input.length) return;
 
-    if (!lines.length) {
-        alert('No barcodes entered');
-        return;
-    }
-
-    const res = await fetch(
-        `/generate?texts=${encodeURIComponent(lines.join('\n'))}`
-    );
-
-    if (!res.ok) {
-        alert(await res.text());
-        return;
-    }
-
+    const res = await fetch(`/generate?texts=${encodeURIComponent(input.join("\n"))}`);
     const data = await res.json();
 
-    let ok = 0;
-    let fail = 0;
+    let ok = 0, fail = 0;
 
     data.forEach(item => {
-        const div = document.createElement('div');
-        div.className = 'label';
+        const div = document.createElement("div");
+        div.className = "label";
 
         if (item.image) {
             ok++;
-            div.innerHTML = `
-                <img src="${item.image}">
-                <div class="text">${item.text}</div>
-            `;
+            div.innerHTML = `<img src="${item.image}"><div class="text">${item.text}</div>`;
         } else {
             fail++;
-            div.innerHTML = `
-                <div style="color:red;font-size:8pt">
-                    ERROR<br>${item.text}<br>${item.error}
-                </div>
-            `;
+            div.innerHTML = `<div style="color:red;font-size:8pt">${item.text}<br>${item.error}</div>`;
         }
         page.appendChild(div);
     });
 
-    summary.textContent = `✅ ${ok} generated — ❌ ${fail} errors`;
-}
-
-/* ======================
-   PDF export
-====================== */
-function exportPDF() {
-    window.print();
+    summary.textContent = i18n[currentLang].summary(ok, fail);
 }
 
 /* ======================
    CSV Drag & Drop
 ====================== */
-const dropzone = document.getElementById('dropzone');
-const textarea = document.getElementById('input');
+const dropzone = document.getElementById("dropzone");
+const textarea = document.getElementById("input");
 
-dropzone.addEventListener('dragover', e => {
+dropzone.addEventListener("dragover", e => {
     e.preventDefault();
-    dropzone.classList.add('dragover');
+    dropzone.classList.add("dragover");
 });
 
-dropzone.addEventListener('dragleave', () => {
-    dropzone.classList.remove('dragover');
-});
+dropzone.addEventListener("dragleave", () =>
+    dropzone.classList.remove("dragover")
+);
 
-dropzone.addEventListener('drop', e => {
+dropzone.addEventListener("drop", e => {
     e.preventDefault();
-    dropzone.classList.remove('dragover');
+    dropzone.classList.remove("dragover");
 
     const file = e.dataTransfer.files[0];
-    if (!file || !file.name.endsWith('.csv')) {
-        alert('Only CSV files allowed');
-        return;
-    }
+    if (!file || !file.name.endsWith(".csv")) return;
 
     const reader = new FileReader();
     reader.onload = () => {
-        const lines = reader.result
+        textarea.value = reader.result
             .split(/\r?\n/)
-            .map(l => l.split(',')[0].trim())
-            .filter(Boolean);
-
-        textarea.value = lines.join('\n');
+            .map(l => l.split(",")[0].trim())
+            .filter(Boolean)
+            .join("\n");
         updateCounter();
     };
     reader.readAsText(file);
 });
 
-textarea.addEventListener('input', updateCounter);
+/* ======================
+   Buttons
+====================== */
+document.getElementById("btn-generate").onclick = generate;
+document.getElementById("btn-layout-a").onclick = () => setLayout("a");
+document.getElementById("btn-layout-b").onclick = () => setLayout("b");
+document.getElementById("btn-export").onclick = () => window.print();
+document.getElementById("btn-print").onclick = () => window.print();
+
+textarea.addEventListener("input", updateCounter);
+
+/* Init */
+setLanguage(currentLang);
 </script>
 
 </body>
