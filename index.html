@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="nl">
+<body>
+
+<h3>Barcodes</h3>
+
+<textarea id="codes" rows="5" cols="50">
+(255)8711576008926812726881(3902)2500
+</textarea><br><br>
+
+<button type="button" onclick="generate()">Genereer</button>
+
+<div id="result"></div>
+
+<script>
+console.log('JS geladen');
+
+async function generate() {
+  console.log('Klik werkt');
+
+  const lines = document.getElementById('codes')
+    .value.split('\n')
+    .map(l => l.trim())
+    .filter(Boolean);
+
+  const res = await fetch('/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ barcodes: lines })
+  });
+
+  const data = await res.json();
+
+  document.getElementById('result').innerHTML =
+    data.map(b =>
+      b.image
+        ? `<img src="${b.image}"><br>`
+        : `<div style="color:red">${b.error}</div>`
+    ).join('');
+}
+</script>
+
+</body>
+</html>
