@@ -14,7 +14,8 @@ const server = http.createServer((req, res) => {
     }
 
     bwipjs.toBuffer({
-        bcid: 'gs1databarexpandedstacked',
+        bcid: 'qrcode',
+        // bcid: 'gs1databarexpandedstacked',
         text: query.text,
         scaleX: 2,
         scaleY: 1,
