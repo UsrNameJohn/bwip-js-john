@@ -23,16 +23,17 @@ const server = http.createServer(async (req, res) => {
 
     for (const text of texts) {
         try {
-            const png = await bwipjs.toBuffer({
-                bcid: 'gs1databarexpanded',
-                text: text,
-                scaleX: 2,
-                scaleY: 1,
-                segments: 8,
-                includetext: true,
-                alttext: text,
+        const png = await bwipjs.toBuffer({
+        bcid: 'databarexpandedstacked',
+        text: text,
+        gs1: true,
+        scaleX: 2,
+        scaleY: 1,
+        segments: 8,
+        includetext: true,
+        alttext: text,
             });
-
+            
             results.push({
                 text,
                 image: 'data:image/png;base64,' + png.toString('base64')
