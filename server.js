@@ -15,7 +15,7 @@ const server = http.createServer((req, res) => {
 
     try {
         const png = bwipjs.toBuffer({
-            bcid: 'gs1databarexpandedstacked',
+            bcid: 'gs1databarexpanded',
             text: query.text,
             scaleX: 2,
             scaleY: 1,
