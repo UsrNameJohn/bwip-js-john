@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="nl">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <title>A4 Barcode Print</title>
@@ -15,7 +15,6 @@ body {
     margin: 0;
 }
 
-/* Niet printen */
 .no-print {
     margin: 10px;
 }
@@ -76,6 +75,7 @@ body {
     text-align: center;
     color: #555;
 }
+
 #dropzone.dragover {
     background: #f0f0f0;
 }
@@ -86,24 +86,102 @@ body {
 
 <div class="no-print">
 
-    <div id="dropzone">
-        📂 Sleep hier een CSV bestand (eerste kolom = barcode)
-    </div>
+    <!-- Language selector -->
+    <select id="language" onchange="setLanguage(this.value)">
+        <option value="en">English</option>
+        <option value="nl">Nederlands</option>
+        <option value="de">Deutsch</option>
+        <option value="hi">हिन्दी</option>
+    </select>
 
-    <textarea id="input" rows="5" cols="60"
-        placeholder="1 barcode per regel"></textarea>
     <br><br>
 
-    <button onclick="generate()">Genereer barcodes</button>
-    <button onclick="setLayout('a')">Layout A</button>
-    <button onclick="setLayout('b')">Layout B</button>
-    <button onclick="exportPDF()">Exporteer PDF</button>
-    <button onclick="window.print()">Print A4</button>
+    <div id="dropzone" data-i18n="dropzone"></div>
+
+    <textarea id="input" rows="5" cols="60"
+        data-i18n-placeholder="placeholder"></textarea>
+
+    <br><br>
+
+    <button data-i18n="generate" onclick="generate()"></button>
+    <button data-i18n="layoutA" onclick="setLayout('a')"></button>
+    <button data-i18n="layoutB" onclick="setLayout('b')"></button>
+    <button data-i18n="exportPDF" onclick="exportPDF()"></button>
+    <button data-i18n="print" onclick="window.print()"></button>
 </div>
 
 <div id="page" class="layout-a"></div>
 
 <script>
+/* ======================
+   Translations
+====================== */
+const translations = {
+    en: {
+        dropzone: "📂 Drag & drop a CSV file here (first column = barcode)",
+        placeholder: "One barcode per line",
+        generate: "Generate barcodes",
+        layoutA: "Layout A",
+        layoutB: "Layout B",
+        exportPDF: "Export PDF",
+        print: "Print A4",
+        noInput: "No barcodes provided",
+        csvOnly: "Only CSV files are allowed",
+        error: "Error"
+    },
+    nl: {
+        dropzone: "📂 Sleep hier een CSV-bestand (eerste kolom = barcode)",
+        placeholder: "Eén barcode per regel",
+        generate: "Genereer barcodes",
+        layoutA: "Layout A",
+        layoutB: "Layout B",
+        exportPDF: "Exporteer PDF",
+        print: "Print A4",
+        noInput: "Geen barcodes opgegeven",
+        csvOnly: "Alleen CSV-bestanden toegestaan",
+        error: "Fout"
+    },
+    de: {
+        dropzone: "📂 CSV-Datei hier ablegen (erste Spalte = Barcode)",
+        placeholder: "Ein Barcode pro Zeile",
+        generate: "Barcodes erzeugen",
+        layoutA: "Layout A",
+        layoutB: "Layout B",
+        exportPDF: "PDF exportieren",
+        print: "A4 drucken",
+        noInput: "Keine Barcodes eingegeben",
+        csvOnly: "Nur CSV-Dateien erlaubt",
+        error: "Fehler"
+    },
+    hi: {
+        dropzone: "📂 यहाँ CSV फ़ाइल डालें (पहला कॉलम = बारकोड)",
+        placeholder: "प्रति पंक्ति एक बारकोड",
+        generate: "बारकोड बनाएँ",
+        layoutA: "लेआउट A",
+        layoutB: "लेआउट B",
+        exportPDF: "PDF निर्यात करें",
+        print: "A4 प्रिंट करें",
+        noInput: "कोई बारकोड नहीं दिया गया",
+        csvOnly: "केवल CSV फ़ाइलें अनुमत हैं",
+        error: "त्रुटि"
+    }
+};
+
+function setLanguage(lang) {
+    const t = translations[lang];
+    window.i18n = t;
+
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        el.textContent = t[el.dataset.i18n];
+    });
+
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        el.placeholder = t[el.dataset.i18nPlaceholder];
+    });
+}
+
+setLanguage('en');
+
 /* ======================
    Layout switch
 ====================== */
@@ -114,7 +192,7 @@ function setLayout(type) {
 }
 
 /* ======================
-   Barcode generatie
+   Barcode generation
 ====================== */
 async function generate() {
     const input = document.getElementById('input').value.trim();
@@ -122,19 +200,11 @@ async function generate() {
     page.innerHTML = '';
 
     if (!input) {
-        alert('Geen barcodes opgegeven');
+        alert(window.i18n.noInput);
         return;
     }
 
-    const res = await fetch(
-        `/generate?texts=${encodeURIComponent(input)}`
-    );
-
-    if (!res.ok) {
-        alert(await res.text());
-        return;
-    }
-
+    const res = await fetch(`/generate?texts=${encodeURIComponent(input)}`);
     const data = await res.json();
 
     data.forEach(item => {
@@ -149,7 +219,7 @@ async function generate() {
         } else {
             div.innerHTML = `
                 <div style="color:red;font-size:8pt">
-                    Fout:<br>${item.text}<br>${item.error}
+                    ${window.i18n.error}<br>${item.text}<br>${item.error}
                 </div>
             `;
         }
@@ -185,7 +255,7 @@ dropzone.addEventListener('drop', e => {
 
     const file = e.dataTransfer.files[0];
     if (!file || !file.name.endsWith('.csv')) {
-        alert('Alleen CSV bestanden toegestaan');
+        alert(window.i18n.csvOnly);
         return;
     }
 
