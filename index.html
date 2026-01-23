@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="nl">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <title>A4 Barcode Print</title>
@@ -15,7 +15,9 @@ body {
     margin: 0;
 }
 
-/* Niet printen */
+/* ======================
+   Controls
+====================== */
 .no-print {
     margin: 10px;
 }
@@ -26,17 +28,42 @@ body {
     }
 }
 
-/* ======================
-   Status
-====================== */
-#status {
-    margin-top: 8px;
-    font-size: 13px;
-    color: #333;
+button {
+    margin-right: 5px;
 }
 
 /* ======================
-   A4 layouts
+   Progress
+====================== */
+#progress-wrapper {
+    width: 100%;
+    height: 10px;
+    background: #ddd;
+    border-radius: 5px;
+    overflow: hidden;
+    margin-top: 8px;
+    display: none;
+}
+
+#progress-bar {
+    height: 100%;
+    width: 0%;
+    background: #2196f3;
+    transition: width 0.2s linear, background 0.2s linear;
+}
+
+#status {
+    font-size: 14px;
+    margin-top: 6px;
+}
+
+#eta {
+    font-size: 12px;
+    color: #666;
+}
+
+/* ======================
+   Layouts
 ====================== */
 #page {
     display: grid;
@@ -55,7 +82,7 @@ body {
 }
 
 /* ======================
-   Label
+   Labels
 ====================== */
 .label {
     border: 1px dashed #ccc;
@@ -66,7 +93,6 @@ body {
 
 .label img {
     max-width: 100%;
-    height: auto;
 }
 
 .label .text {
@@ -76,7 +102,7 @@ body {
 }
 
 /* ======================
-   CSV Drag & Drop
+   Dropzone
 ====================== */
 #dropzone {
     border: 2px dashed #999;
@@ -85,6 +111,7 @@ body {
     text-align: center;
     color: #555;
 }
+
 #dropzone.dragover {
     background: #f0f0f0;
 }
@@ -96,139 +123,153 @@ body {
 <div class="no-print">
 
     <div id="dropzone">
-        📂 Drag & drop a CSV file (first column = barcode)
+        📂 Drop CSV file here (first column = barcode)
     </div>
 
     <textarea id="input" rows="5" cols="60"
         placeholder="1 barcode per line"></textarea>
     <br><br>
 
-    <button id="btn-generate" onclick="generate()">Generate barcodes</button>
+    <button id="btn-generate" onclick="generate()">Generate</button>
+    <button onclick="cancelGeneration()">Cancel</button>
     <button onclick="setLayout('a')">Layout A</button>
     <button onclick="setLayout('b')">Layout B</button>
-    <button onclick="exportPDF()">Download PDF</button>
     <button onclick="window.print()">Print A4</button>
 
     <div id="status"></div>
+    <div id="eta"></div>
+
+    <div id="progress-wrapper">
+        <div id="progress-bar"></div>
+    </div>
 </div>
 
 <div id="page" class="layout-a"></div>
 
 <script>
 /* ======================
-   Layout switch
+   State
+====================== */
+let cancelled = false;
+let startTime = 0;
+
+/* ======================
+   Helpers
 ====================== */
 function setLayout(type) {
     const page = document.getElementById('page');
-    page.classList.remove('layout-a', 'layout-b');
-    page.classList.add(`layout-${type}`);
+    page.className = `layout-${type}`;
+}
+
+function setProgress(percent, color) {
+    const wrapper = document.getElementById('progress-wrapper');
+    const bar = document.getElementById('progress-bar');
+    wrapper.style.display = 'block';
+    bar.style.width = percent + '%';
+    bar.style.background = color;
+}
+
+function resetProgress() {
+    document.getElementById('progress-wrapper').style.display = 'none';
+    document.getElementById('progress-bar').style.width = '0%';
+    document.getElementById('eta').textContent = '';
+}
+
+function formatTime(sec) {
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${s.toString().padStart(2,'0')}`;
 }
 
 /* ======================
-   Barcode generatie
+   Cancel
+====================== */
+function cancelGeneration() {
+    cancelled = true;
+    document.getElementById('status').textContent = 'Cancelled';
+    resetProgress();
+}
+
+/* ======================
+   Generate
 ====================== */
 async function generate() {
     const input = document.getElementById('input').value.trim();
     const page = document.getElementById('page');
     const status = document.getElementById('status');
+    const eta = document.getElementById('eta');
     const btn = document.getElementById('btn-generate');
-
-    page.innerHTML = '';
-    status.textContent = '';
 
     if (!input) {
         status.textContent = 'No barcodes entered';
         return;
     }
 
-    const lines = input.split('\n').filter(Boolean);
-    status.textContent = `Generating ${lines.length} barcodes…`;
+    cancelled = false;
     btn.disabled = true;
+    page.innerHTML = '';
+    startTime = Date.now();
 
-    try {
-        const res = await fetch(
-            `/generate?texts=${encodeURIComponent(input)}`
-        );
+    const lines = input.split('\n').filter(Boolean);
+    const total = lines.length;
 
-        if (!res.ok) {
-            throw new Error(await res.text());
+    /* Phase 1: Fetch */
+    status.textContent = 'Fetching barcodes…';
+    setProgress(10, '#2196f3');
+
+    // NOTE:
+    // This currently fetches everything at once.
+    // Backend streaming (ReadableStream) can replace this later.
+    const res = await fetch(`/generate?texts=${encodeURIComponent(input)}`);
+    const data = await res.json();
+
+    /* Phase 2: Render */
+    status.textContent = 'Rendering barcodes…';
+    setProgress(15, '#ff9800');
+
+    for (let i = 0; i < data.length; i++) {
+        if (cancelled) break;
+
+        const item = data[i];
+        const div = document.createElement('div');
+        div.className = 'label';
+
+        if (item.image) {
+            div.innerHTML = `
+                <img src="${item.image}">
+                <div class="text">${item.text}</div>
+            `;
+        } else {
+            div.innerHTML = `
+                <div style="color:red;font-size:8pt">
+                    Error<br>${item.text}
+                </div>
+            `;
         }
 
-        const data = await res.json();
+        page.appendChild(div);
 
-        data.forEach(item => {
-            const div = document.createElement('div');
-            div.className = 'label';
+        const done = i + 1;
+        const percent = 15 + (done / total) * 85;
+        setProgress(percent, '#ff9800');
 
-            if (item.image) {
-                div.innerHTML = `
-                    <img src="${item.image}">
-                    <div class="text">${item.text}</div>
-                `;
-            } else {
-                div.innerHTML = `
-                    <div style="color:red;font-size:8pt">
-                        Error<br>${item.text}<br>${item.error}
-                    </div>
-                `;
-            }
-            page.appendChild(div);
-        });
+        const elapsed = (Date.now() - startTime) / 1000;
+        const avg = elapsed / done;
+        eta.textContent = `Remaining: ${formatTime(avg * (total - done))}`;
 
-        status.textContent = 'Done';
-
-    } catch (err) {
-        status.textContent = 'Error generating barcodes';
-        console.error(err);
-    } finally {
-        btn.disabled = false;
-    }
-}
-
-/* ======================
-   PDF export
-====================== */
-function exportPDF() {
-    window.print();
-}
-
-/* ======================
-   CSV Drag & Drop
-====================== */
-const dropzone = document.getElementById('dropzone');
-const textarea = document.getElementById('input');
-
-dropzone.addEventListener('dragover', e => {
-    e.preventDefault();
-    dropzone.classList.add('dragover');
-});
-
-dropzone.addEventListener('dragleave', () => {
-    dropzone.classList.remove('dragover');
-});
-
-dropzone.addEventListener('drop', e => {
-    e.preventDefault();
-    dropzone.classList.remove('dragover');
-
-    const file = e.dataTransfer.files[0];
-    if (!file || !file.name.endsWith('.csv')) {
-        alert('Only CSV files are supported');
-        return;
+        await new Promise(r => setTimeout(r, 20));
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-        const lines = reader.result
-            .split(/\r?\n/)
-            .map(l => l.split(',')[0].trim())
-            .filter(Boolean);
+    if (!cancelled) {
+        status.textContent = 'Done ✅';
+        setProgress(100, '#4caf50');
+        setTimeout(resetProgress, 800);
+    }
 
-        textarea.value = lines.join('\n');
-    };
-    reader.readAsText(file);
-});
+    btn.disabled = false;
+}
 </script>
 
 </body>
 </html>
+
