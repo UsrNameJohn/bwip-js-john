@@ -1,3 +1,65 @@
+import http from 'http';
+import url from 'url';
+import bwipjs from 'bwip-js';
+
+const server = http.createServer((req, res) => {
+  const parsedUrl = url.parse(req.url, true);
+
+  if (req.method === 'POST' && parsedUrl.pathname === '/generate') {
+    let body = '';
+
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      const { texts } = JSON.parse(body || '{}');
+
+      if (!Array.isArray(texts) || !texts.length) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'No barcodes provided' }));
+      }
+
+      const results = [];
+
+      for (const text of texts) {
+        try {
+          const png = await bwipjs.toBuffer({
+            bcid: 'databarexpandedstacked',
+            text,
+            gs1: true,
+            scaleX: 2,
+            scaleY: 1,
+            segments: 8,
+            includetext: true,
+            alttext: text
+          });
+
+          results.push({
+            text,
+            image: 'data:image/png;base64,' + png.toString('base64')
+          });
+        } catch (err) {
+          results.push({ text, error: err.message });
+        }
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(results));
+    });
+    return;
+  }
+
+  res.writeHead(404);
+  res.end();
+});
+
+server.listen(3000, () => {
+  console.log('Server running on http://localhost:3000');
+});
+
+
+
+
+/*
+
 const http = require('http');
 const url = require('url');
 const fs = require('fs');
@@ -84,3 +146,4 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
+*/
