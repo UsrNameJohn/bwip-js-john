@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <title>A4 Barcode Print</title>
 
+<!-- html2pdf -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
 <style>
 @page {
     size: A4;
@@ -25,16 +28,12 @@ body {
     }
 }
 
-/* ======================
-   Language buttons
-====================== */
+/* Language buttons */
 .lang-buttons button {
     margin-right: 5px;
 }
 
-/* ======================
-   A4 layouts
-====================== */
+/* A4 layouts */
 #page {
     display: grid;
     gap: 5mm;
@@ -51,9 +50,7 @@ body {
     grid-auto-rows: 25mm;
 }
 
-/* ======================
-   Label
-====================== */
+/* Label */
 .label {
     border: 1px dashed #ccc;
     padding: 2mm;
@@ -72,9 +69,7 @@ body {
     word-break: break-all;
 }
 
-/* ======================
-   CSV Drag & Drop
-====================== */
+/* CSV Drag & Drop */
 #dropzone {
     border: 2px dashed #999;
     padding: 15px;
@@ -86,9 +81,7 @@ body {
     background: #f0f0f0;
 }
 
-/* ======================
-   Progress
-====================== */
+/* Progress */
 #progress {
     margin-top: 10px;
     font-size: 9pt;
@@ -118,6 +111,7 @@ body {
     <button onclick="cancelGeneration()" data-i18n="cancel"></button>
     <button onclick="setLayout('a')" data-i18n="layoutA"></button>
     <button onclick="setLayout('b')" data-i18n="layoutB"></button>
+    <button onclick="downloadPDF()" data-i18n="downloadPdf"></button>
     <button onclick="window.print()" data-i18n="print"></button>
 
     <div id="progress"></div>
@@ -138,6 +132,7 @@ const translations = {
         layoutA: "Layout A",
         layoutB: "Layout B",
         print: "Print A4",
+        downloadPdf: "Download PDF",
         noInput: "No barcodes entered",
         fetching: "Fetching",
         rendering: "Rendering",
@@ -153,6 +148,7 @@ const translations = {
         layoutA: "Layout A",
         layoutB: "Layout B",
         print: "Print A4",
+        downloadPdf: "Download PDF",
         noInput: "Geen barcodes opgegeven",
         fetching: "Ophalen",
         rendering: "Renderen",
@@ -168,6 +164,7 @@ const translations = {
         layoutA: "Layout A",
         layoutB: "Layout B",
         print: "A4 drucken",
+        downloadPdf: "PDF herunterladen",
         noInput: "Keine Barcodes eingegeben",
         fetching: "Laden",
         rendering: "Rendern",
@@ -183,6 +180,7 @@ const translations = {
         layoutA: "लेआउट A",
         layoutB: "लेआउट B",
         print: "A4 प्रिंट करें",
+        downloadPdf: "PDF डाउनलोड करें",
         noInput: "कोई बारकोड नहीं दिया गया",
         fetching: "लोड हो रहा है",
         rendering: "बनाया जा रहा है",
@@ -195,47 +193,33 @@ const translations = {
 let currentLang = 'en';
 let cancelled = false;
 
-/* ======================
-   Language handling
-====================== */
+/* Language */
 function applyTranslations() {
     const t = translations[currentLang];
-
-    document.querySelectorAll('[data-i18n]').forEach(el => {
-        el.textContent = t[el.dataset.i18n];
-    });
-
-    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
-        el.placeholder = t[el.dataset.i18nPlaceholder];
-    });
+    document.querySelectorAll('[data-i18n]').forEach(el => el.textContent = t[el.dataset.i18n]);
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => el.placeholder = t[el.dataset.i18nPlaceholder]);
 }
-
 function setLanguage(lang) {
     currentLang = lang;
     applyTranslations();
 }
-
 window.onload = applyTranslations;
 
-/* ======================
-   Layout switch
-====================== */
+/* Layout */
 function setLayout(type) {
     const page = document.getElementById('page');
     page.classList.remove('layout-a', 'layout-b');
     page.classList.add(`layout-${type}`);
 }
 
-/* ======================
-   Barcode generation
-====================== */
+/* Barcode generation */
 async function generate() {
     cancelled = false;
     const t = translations[currentLang];
-
     const input = document.getElementById('input').value.trim();
     const page = document.getElementById('page');
     const progress = document.getElementById('progress');
+
     page.innerHTML = '';
     progress.textContent = '';
 
@@ -245,16 +229,14 @@ async function generate() {
     }
 
     const lines = input.split('\n').filter(Boolean);
-    const total = lines.length;
 
-    for (let i = 0; i < total; i++) {
+    for (let i = 0; i < lines.length; i++) {
         if (cancelled) {
             progress.textContent = t.cancelled;
             return;
         }
 
-        progress.textContent =
-            `${t.fetching} ${i + 1}/${total} – ${t.remaining}: ${total - i}`;
+        progress.textContent = `${t.fetching} ${i + 1}/${lines.length}`;
 
         const res = await fetch(`/generate?texts=${encodeURIComponent(lines[i])}`);
         const data = await res.json();
@@ -264,22 +246,14 @@ async function generate() {
             div.className = 'label';
 
             if (item.image) {
-                div.innerHTML = `
-                    <img src="${item.image}">
-                    <div class="text">${item.text}</div>
-                `;
+                div.innerHTML = `<img src="${item.image}"><div class="text">${item.text}</div>`;
             } else {
-                div.innerHTML = `
-                    <div style="color:red;font-size:8pt">
-                        ${item.error}
-                    </div>
-                `;
+                div.innerHTML = `<div style="color:red;font-size:8pt">${item.error}</div>`;
             }
             page.appendChild(div);
         });
 
-        progress.textContent =
-            `${t.rendering} ${i + 1}/${total}`;
+        progress.textContent = `${t.rendering} ${i + 1}/${lines.length}`;
     }
 
     progress.textContent = t.done;
@@ -289,9 +263,23 @@ function cancelGeneration() {
     cancelled = true;
 }
 
-/* ======================
-   CSV Drag & Drop
-====================== */
+/* PDF download */
+function downloadPDF() {
+    const element = document.getElementById('page');
+
+    html2pdf()
+        .set({
+            margin: 10,
+            filename: 'barcodes.pdf',
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2 },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        })
+        .from(element)
+        .save();
+}
+
+/* CSV Drag & Drop */
 const dropzone = document.getElementById('dropzone');
 const textarea = document.getElementById('input');
 
@@ -299,11 +287,7 @@ dropzone.addEventListener('dragover', e => {
     e.preventDefault();
     dropzone.classList.add('dragover');
 });
-
-dropzone.addEventListener('dragleave', () => {
-    dropzone.classList.remove('dragover');
-});
-
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
 dropzone.addEventListener('drop', e => {
     e.preventDefault();
     dropzone.classList.remove('dragover');
@@ -313,12 +297,11 @@ dropzone.addEventListener('drop', e => {
 
     const reader = new FileReader();
     reader.onload = () => {
-        const lines = reader.result
+        textarea.value = reader.result
             .split(/\r?\n/)
             .map(l => l.split(',')[0].trim())
-            .filter(Boolean);
-
-        textarea.value = lines.join('\n');
+            .filter(Boolean)
+            .join('\n');
     };
     reader.readAsText(file);
 });
@@ -326,3 +309,4 @@ dropzone.addEventListener('drop', e => {
 
 </body>
 </html>
+
