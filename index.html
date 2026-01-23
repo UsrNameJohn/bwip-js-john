@@ -59,7 +59,14 @@ body {
     box-sizing: border-box;
     text-align: center;
 }
-
+/* Hide 
+*/
+    @media print {
+    .label {
+        border: none;
+    }
+    }
+        
 .label img {
     max-width: 100%;
     height: auto;
