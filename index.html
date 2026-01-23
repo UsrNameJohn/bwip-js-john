@@ -2,10 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>A4 Barcode Print</title>
-
-<!-- html2pdf -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<title>A4 Barcode Generator</title>
 
 <style>
 @page {
@@ -28,12 +25,7 @@ body {
     }
 }
 
-/* Language buttons */
-.lang-buttons button {
-    margin-right: 5px;
-}
-
-/* A4 layouts */
+/* ===== Layouts ===== */
 #page {
     display: grid;
     gap: 5mm;
@@ -50,7 +42,7 @@ body {
     grid-auto-rows: 25mm;
 }
 
-/* Label */
+/* ===== Labels ===== */
 .label {
     border: 1px dashed #ccc;
     padding: 2mm;
@@ -60,7 +52,6 @@ body {
 
 .label img {
     max-width: 100%;
-    height: auto;
 }
 
 .label .text {
@@ -69,7 +60,14 @@ body {
     word-break: break-all;
 }
 
-/* CSV Drag & Drop */
+/* ===== Progress ===== */
+#progress {
+    margin-top: 10px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+/* ===== Dropzone ===== */
 #dropzone {
     border: 2px dashed #999;
     padding: 15px;
@@ -80,12 +78,6 @@ body {
 #dropzone.dragover {
     background: #f0f0f0;
 }
-
-/* Progress */
-#progress {
-    margin-top: 10px;
-    font-size: 9pt;
-}
 </style>
 </head>
 
@@ -93,26 +85,23 @@ body {
 
 <div class="no-print">
 
-    <div class="lang-buttons">
-        <button onclick="setLanguage('en')">EN</button>
-        <button onclick="setLanguage('nl')">NL</button>
-        <button onclick="setLanguage('de')">DE</button>
-        <button onclick="setLanguage('hi')">IN</button>
-    </div>
-    <br>
+    <select id="lang" onchange="setLanguage(this.value)">
+        <option value="en">English</option>
+        <option value="nl">Nederlands</option>
+        <option value="de">Deutsch</option>
+        <option value="hi">Hindi</option>
+    </select>
 
-    <div id="dropzone" data-i18n="dropCsv"></div>
+    <div id="dropzone">📂 Drop CSV file (first column = barcode)</div>
 
     <textarea id="input" rows="5" cols="60"
-        data-i18n-placeholder="placeholder"></textarea>
+        placeholder="1 barcode per line"></textarea>
     <br><br>
 
-    <button onclick="generate()" data-i18n="generate"></button>
-    <button onclick="cancelGeneration()" data-i18n="cancel"></button>
-    <button onclick="setLayout('a')" data-i18n="layoutA"></button>
-    <button onclick="setLayout('b')" data-i18n="layoutB"></button>
-    <button onclick="downloadPDF()" data-i18n="downloadPdf"></button>
-    <button onclick="window.print()" data-i18n="print"></button>
+    <button onclick="generate()">Generate</button>
+    <button onclick="setLayout('a')">Layout A</button>
+    <button onclick="setLayout('b')">Layout B</button>
+    <button onclick="window.print()">Download PDF</button>
 
     <div id="progress"></div>
 </div>
@@ -120,101 +109,49 @@ body {
 <div id="page" class="layout-a"></div>
 
 <script>
-/* ======================
-   Translations
-====================== */
+/* ===== Translations ===== */
 const translations = {
     en: {
-        dropCsv: "📂 Drop CSV file here (first column = barcode)",
-        placeholder: "1 barcode per line",
-        generate: "Generate",
-        cancel: "Cancel",
-        layoutA: "Layout A",
-        layoutB: "Layout B",
-        print: "Print A4",
-        downloadPdf: "Download PDF",
-        noInput: "No barcodes entered",
-        fetching: "Fetching",
-        rendering: "Rendering",
-        done: "Done",
-        cancelled: "Cancelled",
-        remaining: "Remaining"
+        noInput: 'No barcodes provided',
+        fetching: 'Generating',
+        rendering: 'Rendering',
+        done: 'Done',
     },
     nl: {
-        dropCsv: "📂 Sleep CSV bestand hierheen (eerste kolom = barcode)",
-        placeholder: "1 barcode per regel",
-        generate: "Genereer",
-        cancel: "Annuleren",
-        layoutA: "Layout A",
-        layoutB: "Layout B",
-        print: "Print A4",
-        downloadPdf: "Download PDF",
-        noInput: "Geen barcodes opgegeven",
-        fetching: "Ophalen",
-        rendering: "Renderen",
-        done: "Klaar",
-        cancelled: "Geannuleerd",
-        remaining: "Resterend"
+        noInput: 'Geen barcodes opgegeven',
+        fetching: 'Genereren',
+        rendering: 'Renderen',
+        done: 'Klaar',
     },
     de: {
-        dropCsv: "📂 CSV-Datei hier ablegen (erste Spalte = Barcode)",
-        placeholder: "1 Barcode pro Zeile",
-        generate: "Erzeugen",
-        cancel: "Abbrechen",
-        layoutA: "Layout A",
-        layoutB: "Layout B",
-        print: "A4 drucken",
-        downloadPdf: "PDF herunterladen",
-        noInput: "Keine Barcodes eingegeben",
-        fetching: "Laden",
-        rendering: "Rendern",
-        done: "Fertig",
-        cancelled: "Abgebrochen",
-        remaining: "Verbleibend"
+        noInput: 'Keine Barcodes eingegeben',
+        fetching: 'Erzeuge',
+        rendering: 'Rendern',
+        done: 'Fertig',
     },
     hi: {
-        dropCsv: "📂 CSV फ़ाइल यहाँ छोड़ें (पहला कॉलम = बारकोड)",
-        placeholder: "प्रति पंक्ति 1 बारकोड",
-        generate: "जनरेट करें",
-        cancel: "रद्द करें",
-        layoutA: "लेआउट A",
-        layoutB: "लेआउट B",
-        print: "A4 प्रिंट करें",
-        downloadPdf: "PDF डाउनलोड करें",
-        noInput: "कोई बारकोड नहीं दिया गया",
-        fetching: "लोड हो रहा है",
-        rendering: "बनाया जा रहा है",
-        done: "पूरा",
-        cancelled: "रद्द",
-        remaining: "शेष"
+        noInput: 'कोई बारकोड नहीं दिया गया',
+        fetching: 'जनरेट हो रहा है',
+        rendering: 'रेंडर हो रहा है',
+        done: 'तैयार',
     }
 };
 
 let currentLang = 'en';
-let cancelled = false;
 
-/* Language */
-function applyTranslations() {
-    const t = translations[currentLang];
-    document.querySelectorAll('[data-i18n]').forEach(el => el.textContent = t[el.dataset.i18n]);
-    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => el.placeholder = t[el.dataset.i18nPlaceholder]);
-}
+/* ===== Language ===== */
 function setLanguage(lang) {
     currentLang = lang;
-    applyTranslations();
 }
-window.onload = applyTranslations;
 
-/* Layout */
+/* ===== Layout ===== */
 function setLayout(type) {
     const page = document.getElementById('page');
-    page.classList.remove('layout-a', 'layout-b');
-    page.classList.add(`layout-${type}`);
+    page.className = `layout-${type}`;
 }
 
-/* Barcode generation */
+/* ===== Bulk Generation + Progress ===== */
 async function generate() {
-    cancelled = false;
     const t = translations[currentLang];
     const input = document.getElementById('input').value.trim();
     const page = document.getElementById('page');
@@ -228,58 +165,46 @@ async function generate() {
         return;
     }
 
-    const lines = input.split('\n').filter(Boolean);
+    const lines = input.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const total = lines.length;
 
-    for (let i = 0; i < lines.length; i++) {
-        if (cancelled) {
-            progress.textContent = t.cancelled;
-            return;
+    progress.textContent = `${t.fetching}: 0 / ${total}`;
+
+    const res = await fetch(`/generate?texts=${encodeURIComponent(lines.join('\n'))}`);
+    const data = await res.json();
+
+    let rendered = 0;
+
+    for (const item of data) {
+        const div = document.createElement('div');
+        div.className = 'label';
+
+        if (item.image) {
+            div.innerHTML = `
+                <img src="${item.image}">
+                <div class="text">${item.text}</div>
+            `;
+        } else {
+            div.innerHTML = `
+                <div style="color:red;font-size:8pt">
+                    ${item.text}<br>${item.error}
+                </div>
+            `;
         }
 
-        progress.textContent = `${t.fetching} ${i + 1}/${lines.length}`;
+        page.appendChild(div);
+        rendered++;
 
-        const res = await fetch(`/generate?texts=${encodeURIComponent(lines[i])}`);
-        const data = await res.json();
+        progress.textContent =
+            `${t.rendering}: ${rendered} / ${total}`;
 
-        data.forEach(item => {
-            const div = document.createElement('div');
-            div.className = 'label';
-
-            if (item.image) {
-                div.innerHTML = `<img src="${item.image}"><div class="text">${item.text}</div>`;
-            } else {
-                div.innerHTML = `<div style="color:red;font-size:8pt">${item.error}</div>`;
-            }
-            page.appendChild(div);
-        });
-
-        progress.textContent = `${t.rendering} ${i + 1}/${lines.length}`;
+        await new Promise(r => setTimeout(r, 10));
     }
 
     progress.textContent = t.done;
 }
 
-function cancelGeneration() {
-    cancelled = true;
-}
-
-/* PDF download */
-function downloadPDF() {
-    const element = document.getElementById('page');
-
-    html2pdf()
-        .set({
-            margin: 10,
-            filename: 'barcodes.pdf',
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2 },
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        })
-        .from(element)
-        .save();
-}
-
-/* CSV Drag & Drop */
+/* ===== CSV Drag & Drop ===== */
 const dropzone = document.getElementById('dropzone');
 const textarea = document.getElementById('input');
 
@@ -287,21 +212,29 @@ dropzone.addEventListener('dragover', e => {
     e.preventDefault();
     dropzone.classList.add('dragover');
 });
-dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+
+dropzone.addEventListener('dragleave', () => {
+    dropzone.classList.remove('dragover');
+});
+
 dropzone.addEventListener('drop', e => {
     e.preventDefault();
     dropzone.classList.remove('dragover');
 
     const file = e.dataTransfer.files[0];
-    if (!file || !file.name.endsWith('.csv')) return;
+    if (!file || !file.name.endsWith('.csv')) {
+        alert('CSV only');
+        return;
+    }
 
     const reader = new FileReader();
     reader.onload = () => {
-        textarea.value = reader.result
+        const lines = reader.result
             .split(/\r?\n/)
             .map(l => l.split(',')[0].trim())
-            .filter(Boolean)
-            .join('\n');
+            .filter(Boolean);
+
+        textarea.value = lines.join('\n');
     };
     reader.readAsText(file);
 });
@@ -309,4 +242,5 @@ dropzone.addEventListener('drop', e => {
 
 </body>
 </html>
+
 
