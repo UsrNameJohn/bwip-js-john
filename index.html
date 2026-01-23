@@ -2,33 +2,52 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>A4 Barcode Tool</title>
+<title>Barcode Generator</title>
 
 <style>
-@page { size: A4; margin: 10mm; }
+@page {
+    size: A4;
+    margin: 10mm;
+}
 
 body {
     font-family: Arial, sans-serif;
     margin: 0;
 }
 
-.no-print { margin: 10px; }
-
-@media print {
-    .no-print { display: none; }
+/* UI */
+.no-print {
+    margin: 10px;
 }
 
+@media print {
+    .no-print {
+        display: none;
+    }
+}
+
+/* Page layouts */
 #page {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    grid-auto-rows: 35mm;
     gap: 5mm;
     padding: 10mm;
 }
 
+#page.layout-a {
+    grid-template-columns: repeat(2, 1fr);
+    grid-auto-rows: 35mm;
+}
+
+#page.layout-b {
+    grid-template-columns: repeat(3, 1fr);
+    grid-auto-rows: 25mm;
+}
+
+/* Label */
 .label {
     border: 1px dashed #ccc;
     padding: 2mm;
+    box-sizing: border-box;
     text-align: center;
 }
 
@@ -41,32 +60,118 @@ body {
     margin-top: 2mm;
     word-break: break-all;
 }
+
+/* CSV Drop */
+#dropzone {
+    border: 2px dashed #999;
+    padding: 15px;
+    margin-bottom: 10px;
+    text-align: center;
+    color: #555;
+}
+#dropzone.dragover {
+    background: #f0f0f0;
+}
 </style>
 </head>
 
 <body>
 
 <div class="no-print">
-    <textarea id="input" rows="6" cols="60"
+
+    <!-- Language -->
+    <div style="margin-bottom:8px">
+        <button onclick="setLanguage('en')">EN</button>
+        <button onclick="setLanguage('nl')">NL</button>
+        <button onclick="setLanguage('de')">DE</button>
+        <button onclick="setLanguage('hi')">IN</button>
+    </div>
+
+    <!-- CSV -->
+    <div id="dropzone">📂 Drop CSV (first column = barcode)</div>
+
+    <!-- Input -->
+    <textarea id="input" rows="5" cols="60"
         placeholder="One barcode per line"></textarea><br><br>
 
-    <button onclick="generate()">Preview</button>
-    <button onclick="downloadZip()">Download ZIP (SVG)</button>
-    <button onclick="window.print()">Print A4</button>
+    <!-- Actions -->
+    <button id="btn-preview" onclick="generate()">Preview</button>
+    <button onclick="setLayout('a')">Layout A</button>
+    <button onclick="setLayout('b')">Layout B</button>
+    <button id="btn-pdf" onclick="downloadPDF()">Download PDF</button>
+    <button id="btn-zip" onclick="downloadZip()">Download ZIP (SVG)</button>
+    <button id="btn-print" onclick="window.print()">Print A4</button>
 </div>
 
-<div id="page"></div>
+<div id="page" class="layout-a"></div>
 
 <script>
+/* ======================
+   i18n
+====================== */
+const i18n = {
+    en: {
+        placeholder: "One barcode per line",
+        preview: "Preview",
+        print: "Print A4",
+        pdf: "Download PDF",
+        zip: "Download ZIP (SVG)",
+        csv: "Drop CSV (first column = barcode)"
+    },
+    nl: {
+        placeholder: "1 barcode per regel",
+        preview: "Voorbeeld",
+        print: "Print A4",
+        pdf: "Download PDF",
+        zip: "Download ZIP (SVG)",
+        csv: "Sleep CSV (eerste kolom = barcode)"
+    },
+    de: {
+        placeholder: "Ein Barcode pro Zeile",
+        preview: "Vorschau",
+        print: "A4 drucken",
+        pdf: "PDF herunterladen",
+        zip: "ZIP herunterladen",
+        csv: "CSV ablegen (erste Spalte = Barcode)"
+    },
+    hi: {
+        placeholder: "प्रत्येक पंक्ति में एक बारकोड",
+        preview: "पूर्वावलोकन",
+        print: "A4 प्रिंट",
+        pdf: "PDF डाउनलोड",
+        zip: "ZIP डाउनलोड",
+        csv: "CSV फ़ाइल डालें (पहला कॉलम = बारकोड)"
+    }
+};
+
+function setLanguage(lang) {
+    const t = i18n[lang];
+    document.getElementById('input').placeholder = t.placeholder;
+    document.getElementById('btn-preview').innerText = t.preview;
+    document.getElementById('btn-print').innerText = t.print;
+    document.getElementById('btn-pdf').innerText = t.pdf;
+    document.getElementById('btn-zip').innerText = t.zip;
+    document.getElementById('dropzone').innerText = '📂 ' + t.csv;
+}
+
+/* ======================
+   Layout
+====================== */
+function setLayout(type) {
+    const page = document.getElementById('page');
+    page.className = '';
+    page.classList.add('layout-' + type);
+}
+
+/* ======================
+   Preview generation
+====================== */
 async function generate() {
     const input = document.getElementById('input').value.trim();
     const page = document.getElementById('page');
     page.innerHTML = '';
 
-    if (!input) {
-        alert('No barcodes entered');
-        return;
-    }
+    if (!input) return;
 
     const res = await fetch('/generate?texts=' + encodeURIComponent(input));
     const data = await res.json();
@@ -76,27 +181,62 @@ async function generate() {
         div.className = 'label';
 
         if (item.image) {
-            div.innerHTML = `
-                <img src="${item.image}">
-                <div class="text">${item.text}</div>
-            `;
+            div.innerHTML = `<img src="${item.image}"><div class="text">${item.text}</div>`;
         } else {
-            div.innerHTML = `<div style="color:red">${item.error}</div>`;
+            div.innerHTML = `<div style="color:red;font-size:8pt">${item.error}</div>`;
         }
-
         page.appendChild(div);
     });
 }
 
+/* ======================
+   PDF (browser-native)
+====================== */
+function downloadPDF() {
+    window.print();
+}
+
+/* ======================
+   ZIP (SVG)
+====================== */
 function downloadZip() {
     const input = document.getElementById('input').value.trim();
-    if (!input) {
-        alert('No barcodes entered');
-        return;
-    }
-    window.location.href =
-        '/export-zip?texts=' + encodeURIComponent(input);
+    if (!input) return;
+    window.location.href = '/export-zip?texts=' + encodeURIComponent(input);
 }
+
+/* ======================
+   CSV Drag & Drop
+====================== */
+const dropzone = document.getElementById('dropzone');
+const textarea = document.getElementById('input');
+
+dropzone.addEventListener('dragover', e => {
+    e.preventDefault();
+    dropzone.classList.add('dragover');
+});
+
+dropzone.addEventListener('dragleave', () => {
+    dropzone.classList.remove('dragover');
+});
+
+dropzone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropzone.classList.remove('dragover');
+
+    const file = e.dataTransfer.files[0];
+    if (!file || !file.name.endsWith('.csv')) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+        textarea.value = reader.result
+            .split(/\r?\n/)
+            .map(l => l.split(',')[0].trim())
+            .filter(Boolean)
+            .join('\n');
+    };
+    reader.readAsText(file);
+});
 </script>
 
 </body>
