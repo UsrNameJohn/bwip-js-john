@@ -2,49 +2,88 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>A4 Barcode Generator</title>
+<title>A4 Barcode Print</title>
+
+<!-- html2pdf -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
 <style>
-@page { size: A4; margin: 10mm; }
-
-body { font-family: Arial, sans-serif; margin: 0; }
-
-.no-print { margin: 10px; }
-@media print { .no-print { display:none; } }
-
-#langbar button {
-    margin-right: 4px;
-    cursor: pointer;
+@page {
+    size: A4;
+    margin: 10mm;
 }
 
-/* Layouts */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+}
+
+/* ======================
+   Controls
+====================== */
+.no-print {
+    margin: 10px;
+}
+
+@media print {
+    .no-print {
+        display: none;
+    }
+}
+
+/* ======================
+   A4 layouts
+====================== */
 #page {
     display: grid;
     gap: 5mm;
     padding: 10mm;
 }
-#page.layout-a { grid-template-columns: repeat(2,1fr); grid-auto-rows:35mm; }
-#page.layout-b { grid-template-columns: repeat(3,1fr); grid-auto-rows:25mm; }
 
-/* Labels */
+#page.layout-a {
+    grid-template-columns: repeat(2, 1fr);
+    grid-auto-rows: 35mm;
+}
+
+#page.layout-b {
+    grid-template-columns: repeat(3, 1fr);
+    grid-auto-rows: 25mm;
+}
+
+/* ======================
+   Label
+====================== */
 .label {
     border: 1px dashed #ccc;
     padding: 2mm;
+    box-sizing: border-box;
     text-align: center;
 }
-.label img { max-width:100%; }
-.label .text { font-size:8pt; margin-top:2mm; word-break:break-all; }
 
-/* CSV */
+.label img {
+    max-width: 100%;
+    height: auto;
+}
+
+.label .text {
+    font-size: 8pt;
+    margin-top: 2mm;
+    word-break: break-all;
+}
+
+/* ======================
+   CSV Drag & Drop
+====================== */
 #dropzone {
     border: 2px dashed #999;
-    padding: 12px;
-    margin-bottom: 8px;
+    padding: 15px;
+    margin-bottom: 10px;
     text-align: center;
+    color: #555;
 }
-#dropzone.dragover { background:#f0f0f0; }
-
-#summary { margin-top:6px; font-size:9pt; }
+#dropzone.dragover {
+    background: #f0f0f0;
+}
 </style>
 </head>
 
@@ -52,176 +91,174 @@ body { font-family: Arial, sans-serif; margin: 0; }
 
 <div class="no-print">
 
-    <!-- 🌍 LANGUAGE BAR -->
-    <div id="langbar">
-        <strong>Language:</strong>
-        <button onclick="setLang('en')">EN</button>
-        <button onclick="setLang('nl')">NL</button>
-        <button onclick="setLang('de')">DE</button>
-        <button onclick="setLang('hi')">HI</button>
-    </div>
-    <br>
+    <!-- Language -->
+    <select onchange="setLanguage(this.value)">
+        <option value="en">English</option>
+        <option value="nl">Nederlands</option>
+        <option value="de">Deutsch</option>
+        <option value="hi">Hindi</option>
+    </select>
 
-    <div id="dropzone"></div>
+    <br><br>
 
-    <textarea id="input" rows="5" cols="60"></textarea><br><br>
+    <div id="dropzone">📂 Drop CSV file here (first column = barcode)</div>
 
-    <button onclick="generate()" id="btnGen"></button>
-    <button onclick="setLayout('a')" id="btnA"></button>
-    <button onclick="setLayout('b')" id="btnB"></button>
-    <button onclick="exportPDF()" id="btnPDF"></button>
-    <button onclick="window.print()" id="btnPrint"></button>
+    <textarea id="input" rows="5" cols="60"
+        placeholder="1 barcode per line"></textarea>
 
-    <div id="summary"></div>
+    <br><br>
+
+    <button onclick="generate()" id="btn-generate">Generate barcodes</button>
+    <button onclick="setLayout('a')" id="btn-layout-a">Layout A</button>
+    <button onclick="setLayout('b')" id="btn-layout-b">Layout B</button>
+    <button onclick="downloadPDF()" id="btn-pdf">Download PDF</button>
+    <button onclick="window.print()" id="btn-print">Print A4</button>
 </div>
 
 <div id="page" class="layout-a"></div>
 
 <script>
 /* ======================
-   TRANSLATIONS
+   Translations
 ====================== */
 const T = {
     en: {
         drop: "📂 Drop CSV file here (first column = barcode)",
-        placeholder: "One GS1 barcode per line",
-        gen: "Generate barcodes",
+        placeholder: "1 barcode per line",
+        generate: "Generate barcodes",
         la: "Layout A",
         lb: "Layout B",
-        pdf: "Export PDF",
+        pdf: "Download PDF",
         print: "Print A4",
-        empty: "No barcodes entered",
-        ok: (g,b)=>`✅ ${g} generated, ❌ ${b} blocked`
+        empty: "No barcodes entered"
     },
     nl: {
-        drop: "📂 Sleep hier een CSV bestand (eerste kolom = barcode)",
+        drop: "📂 Sleep CSV bestand hier (eerste kolom = barcode)",
         placeholder: "1 barcode per regel",
-        gen: "Genereer barcodes",
+        generate: "Genereer barcodes",
         la: "Layout A",
         lb: "Layout B",
-        pdf: "Exporteer PDF",
+        pdf: "Download PDF",
         print: "Print A4",
-        empty: "Geen barcodes opgegeven",
-        ok: (g,b)=>`✅ ${g} gegenereerd, ❌ ${b} geblokkeerd`
+        empty: "Geen barcodes opgegeven"
     },
     de: {
         drop: "📂 CSV-Datei hier ablegen (erste Spalte = Barcode)",
-        placeholder: "Ein GS1-Barcode pro Zeile",
-        gen: "Barcodes erzeugen",
+        placeholder: "1 Barcode pro Zeile",
+        generate: "Barcodes erzeugen",
         la: "Layout A",
         lb: "Layout B",
-        pdf: "PDF exportieren",
+        pdf: "PDF herunterladen",
         print: "A4 drucken",
-        empty: "Keine Barcodes eingegeben",
-        ok: (g,b)=>`✅ ${g} erzeugt, ❌ ${b} blockiert`
+        empty: "Keine Barcodes eingegeben"
     },
     hi: {
         drop: "📂 CSV फ़ाइल यहाँ डालें (पहला कॉलम = बारकोड)",
-        placeholder: "प्रति पंक्ति एक GS1 बारकोड",
-        gen: "बारकोड बनाएँ",
+        placeholder: "प्रति पंक्ति 1 बारकोड",
+        generate: "बारकोड बनाएँ",
         la: "लेआउट A",
         lb: "लेआउट B",
-        pdf: "PDF निर्यात करें",
+        pdf: "PDF डाउनलोड करें",
         print: "A4 प्रिंट करें",
-        empty: "कोई बारकोड नहीं डाला गया",
-        ok: (g,b)=>`✅ ${g} बने, ❌ ${b} रोके गए`
+        empty: "कोई बारकोड दर्ज नहीं"
     }
 };
 
-let LANG = 'en';
+let LANG = "en";
 
-function setLang(l) {
+function setLanguage(l) {
     LANG = l;
-    const t = T[l];
-
-    dropzone.textContent = t.drop;
-    input.placeholder = t.placeholder;
-    btnGen.textContent = t.gen;
-    btnA.textContent = t.la;
-    btnB.textContent = t.lb;
-    btnPDF.textContent = t.pdf;
-    btnPrint.textContent = t.print;
+    document.getElementById('dropzone').innerText = T[l].drop;
+    document.getElementById('input').placeholder = T[l].placeholder;
+    document.getElementById('btn-generate').innerText = T[l].generate;
+    document.getElementById('btn-layout-a').innerText = T[l].la;
+    document.getElementById('btn-layout-b').innerText = T[l].lb;
+    document.getElementById('btn-pdf').innerText = T[l].pdf;
+    document.getElementById('btn-print').innerText = T[l].print;
 }
 
 /* ======================
-   BASIC FUNCTIONS
+   Layout switch
 ====================== */
-function setLayout(t) {
-    page.className = `layout-${t}`;
-}
-
-function exportPDF() {
-    window.print();
+function setLayout(type) {
+    const page = document.getElementById('page');
+    page.classList.remove('layout-a', 'layout-b');
+    page.classList.add(`layout-${type}`);
 }
 
 /* ======================
-   GENERATE
+   Barcode generation
 ====================== */
 async function generate() {
+    const input = document.getElementById('input').value.trim();
+    const page = document.getElementById('page');
     page.innerHTML = '';
-    summary.textContent = '';
 
-    const lines = input.value.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
-    if (!lines.length) {
-        summary.textContent = T[LANG].empty;
+    if (!input) {
+        alert(T[LANG].empty);
         return;
     }
 
-    const res = await fetch(`/generate?texts=${encodeURIComponent(lines.join('\n'))}`);
+    const res = await fetch(`/generate?texts=${encodeURIComponent(input)}`);
     const data = await res.json();
 
-    let ok = 0, bad = 0;
-
-    data.forEach(d => {
+    data.forEach(item => {
         const div = document.createElement('div');
         div.className = 'label';
 
-        if (d.image) {
-            ok++;
-            div.innerHTML = `<img src="${d.image}"><div class="text">${d.text}</div>`;
+        if (item.image) {
+            div.innerHTML = `<img src="${item.image}"><div class="text">${item.text}</div>`;
         } else {
-            bad++;
-            div.innerHTML = `<div style="color:red;font-size:8pt">${d.text}<br>${d.error}</div>`;
+            div.innerHTML = `<div style="color:red;font-size:8pt">${item.error}</div>`;
         }
         page.appendChild(div);
     });
-
-    summary.textContent = T[LANG].ok(ok, bad);
 }
 
 /* ======================
-   CSV DRAG & DROP
+   PDF Download
+====================== */
+function downloadPDF() {
+    html2pdf().from(document.getElementById('page')).set({
+        margin: 10,
+        filename: 'barcodes_A4.pdf',
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    }).save();
+}
+
+/* ======================
+   CSV Drag & Drop
 ====================== */
 const dropzone = document.getElementById('dropzone');
-const input = document.getElementById('input');
-const page = document.getElementById('page');
-const summary = document.getElementById('summary');
+const textarea = document.getElementById('input');
 
 dropzone.addEventListener('dragover', e => {
     e.preventDefault();
     dropzone.classList.add('dragover');
 });
+
 dropzone.addEventListener('dragleave', () => {
     dropzone.classList.remove('dragover');
 });
+
 dropzone.addEventListener('drop', e => {
     e.preventDefault();
     dropzone.classList.remove('dragover');
-    const f = e.dataTransfer.files[0];
-    if (!f || !f.name.endsWith('.csv')) return;
-    const r = new FileReader();
-    r.onload = () => {
-        input.value = r.result
+
+    const file = e.dataTransfer.files[0];
+    if (!file || !file.name.endsWith('.csv')) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+        textarea.value = reader.result
             .split(/\r?\n/)
-            .map(l=>l.split(',')[0].trim())
+            .map(l => l.split(',')[0].trim())
             .filter(Boolean)
             .join('\n');
     };
-    r.readAsText(f);
+    reader.readAsText(file);
 });
-
-/* INIT */
-setLang('en');
 </script>
 
 </body>
