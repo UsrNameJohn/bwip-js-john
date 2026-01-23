@@ -15,9 +15,6 @@ body {
     margin: 0;
 }
 
-/* ======================
-   Controls
-====================== */
 .no-print {
     margin: 10px;
 }
@@ -28,42 +25,15 @@ body {
     }
 }
 
-button {
+/* ======================
+   Language buttons
+====================== */
+.lang-buttons button {
     margin-right: 5px;
 }
 
 /* ======================
-   Progress
-====================== */
-#progress-wrapper {
-    width: 100%;
-    height: 10px;
-    background: #ddd;
-    border-radius: 5px;
-    overflow: hidden;
-    margin-top: 8px;
-    display: none;
-}
-
-#progress-bar {
-    height: 100%;
-    width: 0%;
-    background: #2196f3;
-    transition: width 0.2s linear, background 0.2s linear;
-}
-
-#status {
-    font-size: 14px;
-    margin-top: 6px;
-}
-
-#eta {
-    font-size: 12px;
-    color: #666;
-}
-
-/* ======================
-   Layouts
+   A4 layouts
 ====================== */
 #page {
     display: grid;
@@ -82,7 +52,7 @@ button {
 }
 
 /* ======================
-   Labels
+   Label
 ====================== */
 .label {
     border: 1px dashed #ccc;
@@ -93,6 +63,7 @@ button {
 
 .label img {
     max-width: 100%;
+    height: auto;
 }
 
 .label .text {
@@ -102,7 +73,7 @@ button {
 }
 
 /* ======================
-   Dropzone
+   CSV Drag & Drop
 ====================== */
 #dropzone {
     border: 2px dashed #999;
@@ -111,9 +82,16 @@ button {
     text-align: center;
     color: #555;
 }
-
 #dropzone.dragover {
     background: #f0f0f0;
+}
+
+/* ======================
+   Progress
+====================== */
+#progress {
+    margin-top: 10px;
+    font-size: 9pt;
 }
 </style>
 </head>
@@ -122,154 +100,229 @@ button {
 
 <div class="no-print">
 
-    <div id="dropzone">
-        📂 Drop CSV file here (first column = barcode)
+    <div class="lang-buttons">
+        <button onclick="setLanguage('en')">EN</button>
+        <button onclick="setLanguage('nl')">NL</button>
+        <button onclick="setLanguage('de')">DE</button>
+        <button onclick="setLanguage('hi')">IN</button>
     </div>
+    <br>
+
+    <div id="dropzone" data-i18n="dropCsv"></div>
 
     <textarea id="input" rows="5" cols="60"
-        placeholder="1 barcode per line"></textarea>
+        data-i18n-placeholder="placeholder"></textarea>
     <br><br>
 
-    <button id="btn-generate" onclick="generate()">Generate</button>
-    <button onclick="cancelGeneration()">Cancel</button>
-    <button onclick="setLayout('a')">Layout A</button>
-    <button onclick="setLayout('b')">Layout B</button>
-    <button onclick="window.print()">Print A4</button>
+    <button onclick="generate()" data-i18n="generate"></button>
+    <button onclick="cancelGeneration()" data-i18n="cancel"></button>
+    <button onclick="setLayout('a')" data-i18n="layoutA"></button>
+    <button onclick="setLayout('b')" data-i18n="layoutB"></button>
+    <button onclick="window.print()" data-i18n="print"></button>
 
-    <div id="status"></div>
-    <div id="eta"></div>
-
-    <div id="progress-wrapper">
-        <div id="progress-bar"></div>
-    </div>
+    <div id="progress"></div>
 </div>
 
 <div id="page" class="layout-a"></div>
 
 <script>
 /* ======================
-   State
+   Translations
 ====================== */
+const translations = {
+    en: {
+        dropCsv: "📂 Drop CSV file here (first column = barcode)",
+        placeholder: "1 barcode per line",
+        generate: "Generate",
+        cancel: "Cancel",
+        layoutA: "Layout A",
+        layoutB: "Layout B",
+        print: "Print A4",
+        noInput: "No barcodes entered",
+        fetching: "Fetching",
+        rendering: "Rendering",
+        done: "Done",
+        cancelled: "Cancelled",
+        remaining: "Remaining"
+    },
+    nl: {
+        dropCsv: "📂 Sleep CSV bestand hierheen (eerste kolom = barcode)",
+        placeholder: "1 barcode per regel",
+        generate: "Genereer",
+        cancel: "Annuleren",
+        layoutA: "Layout A",
+        layoutB: "Layout B",
+        print: "Print A4",
+        noInput: "Geen barcodes opgegeven",
+        fetching: "Ophalen",
+        rendering: "Renderen",
+        done: "Klaar",
+        cancelled: "Geannuleerd",
+        remaining: "Resterend"
+    },
+    de: {
+        dropCsv: "📂 CSV-Datei hier ablegen (erste Spalte = Barcode)",
+        placeholder: "1 Barcode pro Zeile",
+        generate: "Erzeugen",
+        cancel: "Abbrechen",
+        layoutA: "Layout A",
+        layoutB: "Layout B",
+        print: "A4 drucken",
+        noInput: "Keine Barcodes eingegeben",
+        fetching: "Laden",
+        rendering: "Rendern",
+        done: "Fertig",
+        cancelled: "Abgebrochen",
+        remaining: "Verbleibend"
+    },
+    hi: {
+        dropCsv: "📂 CSV फ़ाइल यहाँ छोड़ें (पहला कॉलम = बारकोड)",
+        placeholder: "प्रति पंक्ति 1 बारकोड",
+        generate: "जनरेट करें",
+        cancel: "रद्द करें",
+        layoutA: "लेआउट A",
+        layoutB: "लेआउट B",
+        print: "A4 प्रिंट करें",
+        noInput: "कोई बारकोड नहीं दिया गया",
+        fetching: "लोड हो रहा है",
+        rendering: "बनाया जा रहा है",
+        done: "पूरा",
+        cancelled: "रद्द",
+        remaining: "शेष"
+    }
+};
+
+let currentLang = 'en';
 let cancelled = false;
-let startTime = 0;
 
 /* ======================
-   Helpers
+   Language handling
+====================== */
+function applyTranslations() {
+    const t = translations[currentLang];
+
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        el.textContent = t[el.dataset.i18n];
+    });
+
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        el.placeholder = t[el.dataset.i18nPlaceholder];
+    });
+}
+
+function setLanguage(lang) {
+    currentLang = lang;
+    applyTranslations();
+}
+
+window.onload = applyTranslations;
+
+/* ======================
+   Layout switch
 ====================== */
 function setLayout(type) {
     const page = document.getElementById('page');
-    page.className = `layout-${type}`;
-}
-
-function setProgress(percent, color) {
-    const wrapper = document.getElementById('progress-wrapper');
-    const bar = document.getElementById('progress-bar');
-    wrapper.style.display = 'block';
-    bar.style.width = percent + '%';
-    bar.style.background = color;
-}
-
-function resetProgress() {
-    document.getElementById('progress-wrapper').style.display = 'none';
-    document.getElementById('progress-bar').style.width = '0%';
-    document.getElementById('eta').textContent = '';
-}
-
-function formatTime(sec) {
-    const m = Math.floor(sec / 60);
-    const s = Math.floor(sec % 60);
-    return `${m}:${s.toString().padStart(2,'0')}`;
+    page.classList.remove('layout-a', 'layout-b');
+    page.classList.add(`layout-${type}`);
 }
 
 /* ======================
-   Cancel
-====================== */
-function cancelGeneration() {
-    cancelled = true;
-    document.getElementById('status').textContent = 'Cancelled';
-    resetProgress();
-}
-
-/* ======================
-   Generate
+   Barcode generation
 ====================== */
 async function generate() {
+    cancelled = false;
+    const t = translations[currentLang];
+
     const input = document.getElementById('input').value.trim();
     const page = document.getElementById('page');
-    const status = document.getElementById('status');
-    const eta = document.getElementById('eta');
-    const btn = document.getElementById('btn-generate');
+    const progress = document.getElementById('progress');
+    page.innerHTML = '';
+    progress.textContent = '';
 
     if (!input) {
-        status.textContent = 'No barcodes entered';
+        alert(t.noInput);
         return;
     }
-
-    cancelled = false;
-    btn.disabled = true;
-    page.innerHTML = '';
-    startTime = Date.now();
 
     const lines = input.split('\n').filter(Boolean);
     const total = lines.length;
 
-    /* Phase 1: Fetch */
-    status.textContent = 'Fetching barcodes…';
-    setProgress(10, '#2196f3');
-
-    // NOTE:
-    // This currently fetches everything at once.
-    // Backend streaming (ReadableStream) can replace this later.
-    const res = await fetch(`/generate?texts=${encodeURIComponent(input)}`);
-    const data = await res.json();
-
-    /* Phase 2: Render */
-    status.textContent = 'Rendering barcodes…';
-    setProgress(15, '#ff9800');
-
-    for (let i = 0; i < data.length; i++) {
-        if (cancelled) break;
-
-        const item = data[i];
-        const div = document.createElement('div');
-        div.className = 'label';
-
-        if (item.image) {
-            div.innerHTML = `
-                <img src="${item.image}">
-                <div class="text">${item.text}</div>
-            `;
-        } else {
-            div.innerHTML = `
-                <div style="color:red;font-size:8pt">
-                    Error<br>${item.text}
-                </div>
-            `;
+    for (let i = 0; i < total; i++) {
+        if (cancelled) {
+            progress.textContent = t.cancelled;
+            return;
         }
 
-        page.appendChild(div);
+        progress.textContent =
+            `${t.fetching} ${i + 1}/${total} – ${t.remaining}: ${total - i}`;
 
-        const done = i + 1;
-        const percent = 15 + (done / total) * 85;
-        setProgress(percent, '#ff9800');
+        const res = await fetch(`/generate?texts=${encodeURIComponent(lines[i])}`);
+        const data = await res.json();
 
-        const elapsed = (Date.now() - startTime) / 1000;
-        const avg = elapsed / done;
-        eta.textContent = `Remaining: ${formatTime(avg * (total - done))}`;
+        data.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'label';
 
-        await new Promise(r => setTimeout(r, 20));
+            if (item.image) {
+                div.innerHTML = `
+                    <img src="${item.image}">
+                    <div class="text">${item.text}</div>
+                `;
+            } else {
+                div.innerHTML = `
+                    <div style="color:red;font-size:8pt">
+                        ${item.error}
+                    </div>
+                `;
+            }
+            page.appendChild(div);
+        });
+
+        progress.textContent =
+            `${t.rendering} ${i + 1}/${total}`;
     }
 
-    if (!cancelled) {
-        status.textContent = 'Done ✅';
-        setProgress(100, '#4caf50');
-        setTimeout(resetProgress, 800);
-    }
-
-    btn.disabled = false;
+    progress.textContent = t.done;
 }
+
+function cancelGeneration() {
+    cancelled = true;
+}
+
+/* ======================
+   CSV Drag & Drop
+====================== */
+const dropzone = document.getElementById('dropzone');
+const textarea = document.getElementById('input');
+
+dropzone.addEventListener('dragover', e => {
+    e.preventDefault();
+    dropzone.classList.add('dragover');
+});
+
+dropzone.addEventListener('dragleave', () => {
+    dropzone.classList.remove('dragover');
+});
+
+dropzone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropzone.classList.remove('dragover');
+
+    const file = e.dataTransfer.files[0];
+    if (!file || !file.name.endsWith('.csv')) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+        const lines = reader.result
+            .split(/\r?\n/)
+            .map(l => l.split(',')[0].trim())
+            .filter(Boolean);
+
+        textarea.value = lines.join('\n');
+    };
+    reader.readAsText(file);
+});
 </script>
 
 </body>
 </html>
-
