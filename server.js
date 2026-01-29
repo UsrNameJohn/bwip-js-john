@@ -48,7 +48,7 @@ const server = http.createServer(async (req, res) => {
                     gs1: true,
                     scaleX: 2,
                     scaleY: 1,
-                    segments: 8,
+                    segments: 6,
                     includetext: true,
                     alttext: text
                 });
